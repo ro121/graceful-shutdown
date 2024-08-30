@@ -1,0 +1,46 @@
+#!/bin/bash
+
+# Kubernetes Graceful Shutdown Script
+
+# Function to check if a command exists
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+# Check if kubectl is installed
+if ! command_exists kubectl; then
+    echo "Error: kubectl is not installed or not in PATH"
+    exit 1
+fi
+
+# Function to drain a node
+drain_node() {
+    local node=$1
+    echo "Draining node: $node"
+    kubectl drain "$node" --ignore-daemonsets --delete-emptydir-data
+}
+
+# Function to delete all resources in a namespace
+delete_resources() {
+    local namespace=$1
+    echo "Deleting all resources in namespace: $namespace"
+    kubectl delete all --all -n "$namespace"
+}
+
+# Main script
+
+# 1. Get all nodes
+nodes=$(kubectl get nodes -o jsonpath='{.items[*].metadata.name}')
+
+# 2. Drain all nodes
+for node in $nodes; do
+    drain_node "$node"
+done
+
+# 3. Delete resources in all namespaces (except kube-system)
+namespaces=$(kubectl get namespaces -o jsonpath='{.items[*].metadata.name}')
+for namespace in $namespaces; do
+    if [ "$namespace" != "kube-system" ]; then
+        delete_resources "$namespace"
+    fi
+done
