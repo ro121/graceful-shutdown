@@ -1,0 +1,66 @@
+#!/bin/bash
+
+# Kubernetes Cluster Restart Script
+
+# Function to check if a command exists
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+# Check if kubectl is installed
+if ! command_exists kubectl; then
+    echo "Error: kubectl is not installed or not in PATH"
+    exit 1
+fi
+
+# Function to wait for node to be ready
+wait_for_node() {
+    local node=$1
+    echo "Waiting for node $node to be ready..."
+    kubectl wait --for=condition=Ready node/$node --timeout=300s
+}
+
+# Function to uncordon a node
+uncordon_node() {
+    local node=$1
+    echo "Uncordoning node: $node"
+    kubectl uncordon "$node"
+}
+
+# Main script
+
+echo "Starting Kubernetes cluster restart process..."
+
+# 1. Start etcd (if it's not already running)
+echo "Please ensure etcd is running on all control plane nodes."
+read -p "Press enter when etcd is up and running."
+
+# 2. Start control plane components
+echo "Please start the following components on all control plane nodes:"
+echo "  - kube-apiserver"
+echo "  - kube-controller-manager"
+echo "  - kube-scheduler"
+read -p "Press enter when all control plane components are up and running."
+
+# 3. Wait for control plane to be ready
+echo "Waiting for control plane to be ready..."
+kubectl wait --for=condition=Ready --all pods -n kube-system --timeout=300s
+
+# 4. Start kubelet on all nodes
+echo "Please start kubelet on all nodes (control plane and workers)."
+read -p "Press enter when kubelet is running on all nodes."
+
+# 5. Uncordon nodes
+nodes=$(kubectl get nodes -o jsonpath='{.items[*].metadata.name}')
+for node in $nodes; do
+    wait_for_node "$node"
+    uncordon_node "$node"
+done
+
+# 6. Verify cluster health
+echo "Verifying cluster health..."
+kubectl get nodes
+kubectl get pods --all-namespaces
+
+echo "Kubernetes cluster restart process completed."
+echo "Please verify that all your workloads are running as expected."
