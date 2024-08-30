@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# Start control plane components
+echo "Starting control plane components..."
+sudo systemctl start kube-apiserver kube-controller-manager kube-scheduler
+
+# Uncordon all nodes
+echo "Uncordoning all nodes..."
+for NODE in $(kubectl get nodes -o jsonpath='{.items[*].metadata.name}'); do
+    kubectl uncordon $NODE
+done
+
+# Scale up deployments and statefulsets
+echo "Scaling up deployments and statefulsets..."
+# Adjust these to match your environment or use specific YAML files
+kubectl scale deployment --all --replicas=<replica-count> -n <namespace>
+kubectl scale statefulset --all --replicas=<replica-count> -n <namespace>
+
+echo "Kubernetes cluster restart completed."
